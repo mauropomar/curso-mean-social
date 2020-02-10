@@ -2,7 +2,7 @@
 
 var User = require('../models/user');
 var bcrypt = require('bcrypt-nodejs');
-var jwt= require('../services/jwt');
+var jwt = require('../services/jwt');
 
 function home(req, res) {
     res.status(200).send({
@@ -16,6 +16,7 @@ function pruebas(req, res) {
     })
 }
 
+//metodo de login
 function loginUser(req, res) {
     var params = req.body;
     var email = params.email;
@@ -26,12 +27,12 @@ function loginUser(req, res) {
             if (user) {
                 bcrypt.compare(password, user.password, (err, check) => {
                     if (check) {
-                        if(params.gettoken){
-                           //devolver  y generar token
+                        if (params.gettoken) {
+                            //devolver  y generar token
                             res.status(200).send({
                                 token: jwt.createToken(user)
                             });
-                        }else {
+                        } else {
                             user.password = undefined;
                             res.status(200).send({user});
                         }
@@ -39,13 +40,14 @@ function loginUser(req, res) {
                         return res.status(404).send({message: 'El usuario no se ha podido identificar'})
                     }
                 })
-            }else{
+            } else {
                 return res.status(404).send({message: 'El usuario no se ha podido identificar!!!'})
             }
         }
     )
 }
 
+//
 function saveUser(req, res) {
     var params = req.body;
     var user = new User();
@@ -86,10 +88,22 @@ function saveUser(req, res) {
         });
     }
 }
+//metodo que devuelve un usuario determninado
+function getUser(req, res) {
+    var UserId = req.params.id;
+    User.findById(UserId, (err, user) => {
+         if(err)
+             return res.status(500).send({message:'Error en la petición'});
+        if(!user)
+            return res.status(404).send({message:'El usuario no existe'});
+        return res.status(200).send({user});
+    });
+}
 
 module.exports = {
     home,
     pruebas,
     saveUser,
-    loginUser
+    loginUser,
+    getUser
 }
