@@ -3,6 +3,7 @@
 var User = require('../models/user');
 var bcrypt = require('bcrypt-nodejs');
 var jwt = require('../services/jwt');
+var mongoosePaginate = require('mongoose-pagination');
 
 function home(req, res) {
     res.status(200).send({
@@ -88,16 +89,53 @@ function saveUser(req, res) {
         });
     }
 }
+
 //metodo que devuelve un usuario determninado
 function getUser(req, res) {
     var UserId = req.params.id;
     User.findById(UserId, (err, user) => {
-         if(err)
-             return res.status(500).send({message:'Error en la petición'});
-        if(!user)
-            return res.status(404).send({message:'El usuario no existe'});
+        if (err)
+            return res.status(500).send({message: 'Error en la petición'});
+        if (!user)
+            return res.status(404).send({message: 'El usuario no existe'});
         return res.status(200).send({user});
     });
+}
+
+//metodo que devuelve un listado de usuarios paginado
+function getUsers(req, res) {
+    var identify_user_id = req.user.sub;
+    var page = 1;
+    if (req.params.page) {
+        page = req.params.page;
+    }
+    var itemsPerPage = 5;
+    User.find().sort('_id').paginate(page, itemsPerPage, (err, users, total) => {
+        if (err) return res.status(500).send({message: 'Error en la peticion'});
+        if (!users) return res.status(400).send({message: 'No hayy usuarios disponibles.'});
+        return res.status(200).send({
+            users,
+            total,
+            pages: Math.ceil(total / itemsPerPage)
+        });
+    });
+}
+
+//editar los datos del usuario
+function updateUser(req, res) {
+    var userId = req.params.id;
+    var update = req.body;
+    // borrar propiedad password
+    delete update.password;
+    if (userId != req.user.sub) {
+        return res.status(500).send({message: 'No tienes permiso para actualizar los datos del usuario.'});
+    }
+
+    User.findByIdAndUpdate(userId, update, {new:true},(err, userUpdated) => {
+        if (err) return res.status(500).send({message: 'Error en la peticion.'});
+        if (!userUpdated) return res.status(404).send({message: 'No se ha podido actualizar.'});
+        return res.status(200).send({user: userUpdated});
+    })
 }
 
 module.exports = {
@@ -105,5 +143,7 @@ module.exports = {
     pruebas,
     saveUser,
     loginUser,
-    getUser
+    getUser,
+    getUsers,
+    updateUser
 }
