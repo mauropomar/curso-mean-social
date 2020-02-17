@@ -4,6 +4,8 @@ var User = require('../models/user');
 var bcrypt = require('bcrypt-nodejs');
 var jwt = require('../services/jwt');
 var mongoosePaginate = require('mongoose-pagination');
+var fs = require('fs');
+var path = require('path');
 
 function home(req, res) {
     res.status(200).send({
@@ -131,12 +133,63 @@ function updateUser(req, res) {
         return res.status(500).send({message: 'No tienes permiso para actualizar los datos del usuario.'});
     }
 
-    User.findByIdAndUpdate(userId, update, {new:true},(err, userUpdated) => {
+    User.findByIdAndUpdate(userId, update, {new: true}, (err, userUpdated) => {
         if (err) return res.status(500).send({message: 'Error en la peticion.'});
         if (!userUpdated) return res.status(404).send({message: 'No se ha podido actualizar.'});
         return res.status(200).send({user: userUpdated});
     })
 }
+
+function uploadImage(req, res) {
+    var userId = req.params.id;
+
+    if (req.files) {
+        var file_path = req.files.image.path;
+      //  console.log(file_path);
+        var file_split = file_path.split('\\');
+     //   console.log(file_split);
+        var file_name = file_split[2];
+        console.log(file_name);
+        var ext_split = file_name.split('\.');
+   //     console.log(ext_split);
+        var file_ext = ext_split[1];
+   //     console.log(file_ext);
+        if (userId != req.user.sub) {
+           return removeFilePathUploads(res, file_path, 'No tienes permiso para actualizar los datos del usuario.');
+        }
+        if (file_ext == 'png' || file_ext == 'jpg' || file_ext == 'gif' || file_ext == 'jpeg') {
+            //Actualizar documento usuario logueado
+            User.findByIdAndUpdate(userId, {image:file_name}, {new: true}, (err, userUpdated) => {
+                if (err) return res.status(500).send({message: 'Error en la peticion.'});
+                if (!userUpdated) return res.status(404).send({message: 'No se ha podido actualizar.'});
+                return res.status(200).send({user: userUpdated});
+            })
+        } else {
+           return removeFilePathUploads(res, file_path, 'Extensión no válida.');
+        }
+    } else {
+        return res.status(200).send({message: 'No se han subido imagenes.'});
+    }
+}
+
+function getImageFile(req, res){
+    var image_file = req.params.imageFile;
+    var path_file = './uploads/users/'+image_file;
+    fs.exists(path_file, (exists) => {
+        if(exists){
+            res.sendFile(path.resolve(path_file));
+        }else{
+            res.status(200).send({message:'No existe la imagen...'});
+        }
+    });
+}
+
+function removeFilePathUploads(res, filepath, message) {
+    fs.unlink(filepath, (err) => {
+        return res.status(200).send({message: message});
+    })
+}
+
 
 module.exports = {
     home,
@@ -145,5 +198,7 @@ module.exports = {
     loginUser,
     getUser,
     getUsers,
-    updateUser
+    updateUser,
+    uploadImage,
+    getImageFile
 }
