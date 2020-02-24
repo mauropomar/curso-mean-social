@@ -94,6 +94,7 @@ function saveUser(req, res) {
 }
 
 //metodo que devuelve un usuario determninado
+//----------------------------------------User---------------------------------------//
 function getUser(req, res) {
     var userId = req.params.id;
     User.findById(userId, (err, user) => {
@@ -101,24 +102,35 @@ function getUser(req, res) {
             return res.status(500).send({message: 'Error en la petición'});
         if (!user)
             return res.status(404).send({message: 'El usuario no existe'});
-        followThisUser(req.user.sub, userId).then((value)=>{
-            return res.status(200).send({user, value});
-        })
+        followThisUser(req.user.sub, userId).then((value) => {
+            user.password = undefined;
+            return res.status(200).send({
+                user,
+                "following": value.following,
+                "followed": value.followed
+            });
+        });
     });
 }
 
-async function followThisUser(identity_user_id, user_id){
-    var following = await Follow.findOne({"user":identity_user_id, "followed":user_id}).exec((err, follow) =>{
-        if(err) return handleError(err);
-        return follow;
-    });
-    var followed = await Follow.findOne({"user":user_id, "followed":identity_user_id}).exec((err, follow) =>{
-        if(err) return handleError(err);
-        return follow;
-    });
+function awaitFollow(identity_user_id, user_id) {
+    return new Promise(resolve => {
+        Follow.findOne({"user": identity_user_id, "followed": user_id}).exec((err, follow) => {
+            resolve(follow);
+        });
+    })
 }
 
+async function followThisUser(identity_user_id, user_id) {
+    var following = await awaitFollow(identity_user_id, user_id);
+    var followed = await awaitFollow(user_id, identity_user_id);
+    return {
+        following: following,
+        followed: followed
+    }
+};
 
+//-----------------------------------Users-------------------------------------------------//
 //metodo que devuelve un listado de usuarios paginado
 function getUsers(req, res) {
     var identify_user_id = req.user.sub;
@@ -130,14 +142,90 @@ function getUsers(req, res) {
     User.find().sort('_id').paginate(page, itemsPerPage, (err, users, total) => {
         if (err) return res.status(500).send({message: 'Error en la peticion'});
         if (!users) return res.status(400).send({message: 'No hayy usuarios disponibles.'});
-        return res.status(200).send({
-            users,
-            total,
-            pages: Math.ceil(total / itemsPerPage)
+        followUserIds(identify_user_id).then((value) => {
+            return res.status(200).send({
+                users,
+                users_following: value.following,
+                users_follow_me: value.follow,
+                total,
+                pages: Math.ceil(total / itemsPerPage)
+            });
         });
     });
 }
 
+async function followUserIds(user_id) {
+    var following = await awaitGetUserIds(user_id);
+    var follow = await awaitGetFollowedId(user_id);
+    return {
+        following: following,
+        follow: follow
+    }
+}
+
+function awaitGetUserIds(userId) {
+    return new Promise(resolve => {
+        Follow.find({"user": userId}).select({'__id': 0, '_v': 0, 'user': 0}).exec((err, follows) => {
+            var follows_clean = [];
+            follows.forEach((follow) => {
+                follows_clean.push(follow.followed);
+            });
+            resolve(follows_clean);
+        });
+    })
+}
+
+function awaitGetFollowedId(userId) {
+    return new Promise(resolve => {
+        Follow.find({"followed": userId}).select({'__id': 0, '_v': 0, 'followed': 0}).exec((err, follows) => {
+            var follows_clean = [];
+            follows.forEach((follow) => {
+                follows_clean.push(follow.user);
+                resolve(follows_clean);
+            });
+        })
+    })
+}
+
+//-------------------------------------------Contador-------------------------------------------------//
+function getCounters(req, res) {
+    var userId = req.user.sub;
+    if (req.params.id) {
+        userId = req.params.id;
+    }
+    getCountFollow(userId).then((value) => {
+        return res.status(200).send(value);
+    });
+}
+
+async function getCountFollow(user_id) {
+    var following = await awaitCountFollowing(user_id);
+    var followed = await awaitCountFollowed(user_id);
+    return {
+        following: following,
+        followed: followed
+    }
+}
+
+
+function awaitCountFollowing(userId) {
+    return new Promise(resolve => {
+        Follow.count({"user": userId}).exec((err, follow) => {
+            resolve(follow);
+        });
+    });
+}
+
+function awaitCountFollowed(userId) {
+    return new Promise(resolve => {
+        Follow.count({"followed": userId}).exec((err, follow) => {
+            resolve(follow);
+        });
+    });
+}
+
+
+//-----------------------------------------------------------------------------------------------------//
 //editar los datos del usuario
 function updateUser(req, res) {
     var userId = req.params.id;
@@ -215,5 +303,6 @@ module.exports = {
     getUsers,
     updateUser,
     uploadImage,
-    getImageFile
+    getImageFile,
+    getCounters
 }
