@@ -1,4 +1,4 @@
-'use strinct'
+'use strict'
 
 var User = require('../models/user');
 var Follow = require('../models/follow');
