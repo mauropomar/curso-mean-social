@@ -2,6 +2,7 @@
 
 var User = require('../models/user');
 var Follow = require('../models/follow');
+var Publication = require('../models/publication');
 var bcrypt = require('bcrypt-nodejs');
 var jwt = require('../services/jwt');
 var mongoosePaginate = require('mongoose-pagination');
@@ -141,7 +142,7 @@ function getUsers(req, res) {
     var itemsPerPage = 5;
     User.find().sort('_id').paginate(page, itemsPerPage, (err, users, total) => {
         if (err) return res.status(500).send({message: 'Error en la peticion'});
-        if (!users) return res.status(400).send({message: 'No hayy usuarios disponibles.'});
+        if (!users) return res.status(400).send({message: 'No hay usuarios disponibles.'});
         followUserIds(identify_user_id).then((value) => {
             return res.status(200).send({
                 users,
@@ -201,9 +202,11 @@ function getCounters(req, res) {
 async function getCountFollow(user_id) {
     var following = await awaitCountFollowing(user_id);
     var followed = await awaitCountFollowed(user_id);
+    var publications = await awaitCountPublication(user_id);
     return {
         following: following,
-        followed: followed
+        followed: followed,
+        publications: publications
     }
 }
 
@@ -220,6 +223,14 @@ function awaitCountFollowed(userId) {
     return new Promise(resolve => {
         Follow.count({"followed": userId}).exec((err, follow) => {
             resolve(follow);
+        });
+    });
+}
+
+function awaitCountPublication(userId) {
+    return new Promise(resolve => {
+        Publication.count({"user": userId}).exec((err, publication) => {
+            resolve(publication);
         });
     });
 }
